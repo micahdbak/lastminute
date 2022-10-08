@@ -6,12 +6,10 @@ Uint32 updateSprite(Uint32 interval, void *param)
 {
 	struct sprite *sprite = (struct sprite *)param;
 
-	nextFrame(sprite);
+	if (!sprite->isPaused)
+		nextFrame(sprite);
 
-	if ((Uint32)sprite->interval != interval)
-		return sprite->interval;
-
-	return interval;
+	return (Uint32)sprite->interval != interval ? sprite->interval : interval;
 }
 
 void loadSprite(char *path, struct sprite *sprite, int width, int height)
@@ -37,7 +35,15 @@ void loadSprite(char *path, struct sprite *sprite, int width, int height)
 
 	sprite->interval = 1000;
 
+	sprite->isPaused = 0;
+
 	sprite->timer = SDL_AddTimer(sprite->interval, updateSprite, (void *)sprite);
+}
+
+void freeSprite(struct sprite *sprite)
+{
+	SDL_FreeSurface(sprite->sheet);
+	SDL_RemoveTimer(sprite->timer);
 }
 
 void nextFrame(struct sprite *sprite)
@@ -46,6 +52,16 @@ void nextFrame(struct sprite *sprite)
 
 	if (sprite->rect.x >= sprite->sheet->w)
 		sprite->rect.x = 0;
+}
+
+void setSpriteRow(struct sprite *sprite, int row)
+{
+	sprite->rect.y = sprite->height * row;
+}
+
+void setSpriteSpeed(struct sprite *sprite, int framesPerSecond)
+{
+	sprite->interval = 1000 / framesPerSecond;
 }
 
 void renderSprite(struct sprite *sprite, SDL_Surface *surface)

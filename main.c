@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "sprite.h"
+#include "world.h"
 
 #define SWIDTH	640
 #define SHEIGHT	480
@@ -24,6 +25,7 @@ int main(int argc, char *argv[])
 	double delta;
 	int quit = 0;
 	struct sprite randomGuy;
+	struct world world;
 
 	if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) != 0)
 	{
@@ -46,10 +48,18 @@ int main(int argc, char *argv[])
 
 	printf("Success!\n");
 
+	loadWorld("over.world", &world);
+
+	printf("Success 2!\n");
+
 	loadSprite("randomGuy.bmp", &randomGuy, 16, 16);
+
+	printf("Success 3!\n");
 
 	randomGuy.x = 16.0f;
 	randomGuy.y = 16.0f;
+
+	printf("%dx%d, %dx%d, %dx%d, %dx%d\n", world.tileSet.imageData->w, world.tileSet.imageData->h, world.tileSet.width, world.tileSet.height, world.tileSet.nCol, world.tileSet.nRow, world.map.nCol, world.map.nRow);
 
 	while (!quit)
 	{
@@ -75,9 +85,11 @@ int main(int argc, char *argv[])
 			randomGuy.x = 16.0f;
 
 		SDL_FillRect(screen, NULL, 0xff0000ff);
+		loopWorld(&world, screen);
 		renderSprite(&randomGuy, screen);
 		SDL_UpdateWindowSurface(window);
 	}
 
+	freeWorld(&world);
 	exit(EXIT_SUCCESS);
 }

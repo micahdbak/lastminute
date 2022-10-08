@@ -1,4 +1,5 @@
 FILES = sprite.c\
+	world.c\
 	main.c
 
 make explorer:
