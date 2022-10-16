@@ -50,14 +50,18 @@ int main(int argc, char *argv[])
 
 	screenRatio = (float)world.screenWidth / (float)world.screenHeight;
 
-	loadFont("font.bmp", &world.font[REGULAR], 10, 4, 7, 0);
+	loadFont("whiteFont.bmp", &world.font[FONT_WHITE], 12, 3, 6, 18,
+	         ML('C', 5), ML('I', 5), ML('J', 5), ML('L', 5), ML('M', 8), ML('N', 7), ML('T', 7), ML('W', 8),
+		 ML('c', 5), ML('f', 5), ML('i', 3), ML('j', 4), ML('l', 4), ML('m', 9), ML('r', 5), ML('s', 5), ML('t', 5), ML('w', 8));
 	loadWorld("over.world", &world);
 
 	world.keyMap[0] = 0;
 	world.keyMap[1] = 0;
 
 	music = Mix_LoadMUS("music.ogg");
-	Mix_PlayMusic(music, -1);
+	/*
+	mix_PlayMusic(music, -1);
+	*/
 
 	while (!quit)
 	{
@@ -154,7 +158,7 @@ int main(int argc, char *argv[])
 		SDL_UpdateWindowSurface(window);
 	}
 
-	freeFont(&world.font[REGULAR]);
+	freeFont(&world.font[FONT_WHITE]);
 	freeWorld(&world);
 
 	SDL_FreeSurface(colorArea_surface);

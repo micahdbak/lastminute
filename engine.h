@@ -50,6 +50,7 @@ struct object
 	    isPaused,
 	    raise;
 	SDL_Rect sprite;
+	SDL_Rect collider;
 	SDL_TimerID timer;
 	void (*objectRoutine)(struct object *object, struct world *world);
 };
@@ -75,8 +76,9 @@ void freeObject(struct object *object);
 #define MAX_SPRITEQUEUE	50
 #define MAX_OBJECTQUEUE	50
 
-#define REGULAR	0
-#define NFONTS	1
+#define FONT_WHITE	0
+#define FONT_BLACK	1
+#define NFONTS		2
 
 #define MAP_BACKGROUND	0
 #define MAP_ADDITIONAL	1
@@ -110,9 +112,7 @@ struct world
 	int screenWidth, screenHeight;
 	int xView, yView;
 
-#ifdef EDITOR
-	char objectData[1000];
-#endif
+	int worldID;
 
 	struct spriteIndex
 	{
@@ -123,11 +123,8 @@ struct world
 		struct spriteIndex *next;
 	} *spriteQueue;
 
-	struct objectIndex
-	{
-		struct object *object;
-		struct objectIndex *next;
-	} *objectQueue;
+	void (*worldRoutine)(struct world *world);
+	void (*worldEnd)(struct world *world);
 
 	float delta;
 	Uint32 keyMap[2];
@@ -137,7 +134,6 @@ void loadWorld(const char *path, struct world *world);
 void freeWorld(struct world *world);
 
 void queueSprite(struct world *world, struct object *object);
-void queueObject(struct world *world, struct object *object);
 
 #define keyIsDown(keyIsDown_worldPtr, keyIsDown_key)\
 	( ((keyIsDown_worldPtr)->keyMap[0] & keyIsDown_key) && ((keyIsDown_worldPtr)->keyMap[1] & keyIsDown_key) )
@@ -153,7 +149,16 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 #endif
 
 
+/* overworld.c */
+
+void overWorldStart(struct world *world);
+void overWorldRoutine(struct world *world);
+void overWorldEnd(struct world *world);
+
+
 /* player.c */
+
+extern struct playerData playerData;
 
 void playerStart(struct object *object, char *param);
 void playerRoutine(struct object *object, struct world *world);

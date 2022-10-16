@@ -38,6 +38,8 @@ void loadSprites(const char *path, struct object *object, int width, int height)
 	object->sprite.w = width;
 	object->sprite.h = height;
 
+	object->collider = object->sprite;
+
 	object->timer = SDL_AddTimer(object->interval, updateSprite, (void *)object);
 }
 

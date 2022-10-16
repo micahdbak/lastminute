@@ -12,12 +12,19 @@ void playerStart(struct object *object, char *param)
 	diagonalMultiplier = 1.0 / sqrt(2.0);
 
 	loadSprites("player.bmp", object, 16, 16);
-	object->xCenter = 8, object->yCenter = 12;
+	object->xCenter = 8, object->yCenter = 16;
+
+	object->collider.x = 2;
+	object->collider.y = 12;
+	object->collider.w = 12;
+	object->collider.h = 4;
 
 	sscanf(param, "%d,%d", &xStart, &yStart);
 
 	object->x = (float)xStart;
 	object->y = (float)yStart;
+	object->xCenter = 8;
+	object->yCenter = 16;
 
 	footstep = Mix_LoadWAV("footStep.wav");
 }
@@ -30,6 +37,7 @@ void playerRoutine(struct object *object, struct world *world)
 	float speed,
 	      xMod, yMod;
 	SDL_Rect propose;
+	SDL_Rect textArea = { 4, 4, 256, 0 };
 
 	if (keyIsHit(world, KEY_BACK))
 		Mix_PlayChannel(-1, footstep, 0);
@@ -73,20 +81,20 @@ void playerRoutine(struct object *object, struct world *world)
 		xMod = world->delta * speed * xDir;
 		yMod = world->delta * speed * yDir;
 
-		propose.x = (int)(object->x + xMod) - object->xCenter;
-		propose.y = (int)(object->y + yMod) - object->yCenter;
-		propose.w = object->sprite.w;
-		propose.h = object->sprite.h;
+		propose.x = object->collider.x + (int)(object->x + xMod) - object->xCenter;
+		propose.y = object->collider.y + (int)object->y - object->yCenter;;
+		propose.w = object->collider.w;
+		propose.h = object->collider.h;
 
-		/*
 		if (!isCollision(world, &propose))
-		{
-		*/
 			object->x += xMod;
+		else
+			propose.x = object->collider.x + (int)object->x - object->xCenter;
+
+		propose.y = object->collider.y + (int)(object->y + yMod) - object->yCenter;
+
+		if (!isCollision(world, &propose))
 			object->y += yMod;
-		/*
-		}
-		*/
 
 		setView(world, (int)object->x, (int)object->y);
 	}

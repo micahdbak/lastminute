@@ -1,6 +1,7 @@
 FILES = draw.c\
 	object.c\
 	player.c\
+	overWorld.c\
 	world.c\
 	main.c
 

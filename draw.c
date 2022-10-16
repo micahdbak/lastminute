@@ -60,6 +60,7 @@ void loadFont(const char *path, struct font *font, int leading, int spaceWidth, 
 
 	font->sheet = SDL_LoadBMP(path);
 	assert(font->sheet != NULL);
+	SDL_SetColorKey(font->sheet, SDL_TRUE, SDL_MapRGB(font->sheet->format, 0xff, 0, 0xff));
 
 	font->leading = leading;
 	font->spaceWidth = spaceWidth;

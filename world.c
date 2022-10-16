@@ -10,74 +10,38 @@
 
 void loadWorld(const char *path, struct world *world)
 {
-	static struct object object[MAX_OBJECTQUEUE];
-
 	FILE *worldFile;
 	char tileSetPath[MAX_TILESETPATH];
 	int xMap, yMap,
 	    xTile, yTile,
 	    readData,
-	    c, objectID, i,
+	    c, worldID, i,
 	    mapIndex;
-	char objectParam[MAX_OBJECTPARAM];
-	int availableIndex = 0;
 	SDL_Rect emptyTile;
 
 	worldFile = fopen(path, "r");
 	assert(worldFile != NULL);
 #ifdef EDITOR
 	world->map.path = path;
+#endif
 
-	i = 0;
+	fscanf(worldFile, "%d\n", &world->worldID);
 
-	while (isdigit(c = getc(worldFile)))
+#ifndef EDITOR
+	switch (world->worldID)
 	{
+	case 0:
+	/* overWorld.c */
+		world->worldRoutine = overWorldRoutine;
+		world->worldEnd = overWorldEnd;
 
-		do {
-			world->objectData[i++] = c;
-		} while ((c = getc(worldFile)) != '\n');
+		overWorldStart(world);
 
-		world->objectData[i++] = '\n';
+		break;
+	default:
+
+		break;
 	}
-
-	world->objectData[i] = '\0';
-
-	ungetc(c, worldFile);
-
-	printf("%s", world->objectData);
-#else
-
-	while (isdigit(c = getc(worldFile)) && availableIndex < MAX_OBJECTQUEUE)
-	{
-		ungetc(c, worldFile);
-
-		fscanf(worldFile, "%d", &objectID);
-
-		if ((c = getc(worldFile)) == ':')
-			for (i = 0; (c = getc(worldFile)) != '\n'; ++i)
-				objectParam[i] = c;
-
-		objectParam[i] = '\0';
-
-		switch (objectID)
-		{
-		case 0:
-		/* player */
-			object[availableIndex].objectRoutine = playerRoutine;
-			queueObject(world, &object[availableIndex]);
-			playerStart(&object[availableIndex], objectParam);
-
-			++availableIndex;
-
-			break;
-		default:
-			printf("Unknown object of ID %d.\n", objectID);
-
-			break;
-		}
-	}
-
-	ungetc(c, worldFile);
 #endif
 
 	fscanf(worldFile, "%s\n", tileSetPath);
@@ -206,7 +170,8 @@ void loadWorld(const char *path, struct world *world)
 void freeWorld(struct world *world)
 {
 	int xMap, yMap;
-	struct objectIndex *marchObject, *nextObject;
+
+	world->worldEnd(world);
 
 	for (xMap = 0; xMap < world->map.nCol; ++xMap)
 	{
@@ -301,37 +266,6 @@ void queueSprite(struct world *world, struct object *object)
 	++availableIndex;
 }
 
-void queueObject(struct world *world, struct object *object)
-{
-	static struct objectIndex queue[MAX_OBJECTQUEUE];
-	static int availableIndex;
-
-	struct objectIndex *marchObject;
-
-	if (world->objectQueue == NULL)
-	{
-		availableIndex = 0;
-
-		queue[availableIndex].object = object;
-		queue[availableIndex].next = NULL;
-
-		world->objectQueue = &queue[availableIndex++];
-
-		return;
-	}
-
-	if (availableIndex == MAX_OBJECTQUEUE)
-
-
-	for (marchObject = world->objectQueue; marchObject->next != NULL; marchObject = marchObject->next)
-		;
-
-	queue[availableIndex].object = object;
-	queue[availableIndex].next = NULL;
-
-	marchObject->next = &queue[availableIndex++];
-}
-
 void setView(struct world *world, int xFocus, int yFocus)
 {
 	int xMax, yMax;
@@ -359,31 +293,40 @@ void setView(struct world *world, int xFocus, int yFocus)
 
 int isCollision(struct world *world, SDL_Rect *area)
 {
-	int i = 0,
-	    xMin, yMin,
+	int xMin, yMin,
 	    xMax, yMax,
 	    xMap, yMap;
+	SDL_Rect collisionBox;
+	SDL_Rect result;
 
-	xMin = (area->x) / world->tileSet.width;
-	yMin = (area->y) / world->tileSet.height;
-	xMax = (area->x + area->w);
-	xMax += world->tileSet.width - (xMax % world->tileSet.width);
-	xMax /= world->tileSet.width;
-	yMax = (area->y + area->h);
-	yMax += world->tileSet.height - (yMax % world->tileSet.height);
-	yMax /= world->tileSet.height;
+	xMin = area->x / world->tileSet.width;
+	yMin = area->y / world->tileSet.height;
+	xMax = (area->x + area->w) / world->tileSet.width;
+	++xMax;
+	yMax = (area->y + area->h) / world->tileSet.height;
+	++yMax;
 
-	if (xMin < 0
-	 || yMin < 0
-	 || xMax > world->tileSet.nCol - 1
-	 || yMax > world->tileSet.nRow - 1
-	 || xMin > xMax || yMin > yMax)
-		return 1;
+	if (xMin < 0)
+		xMin = 0;
+	if (yMin < 0)
+		yMin = 0;
+	if (xMax > world->map.nCol - 1)
+		xMax = world->map.nCol - 1;
+	if (yMax > world->map.nRow - 1)
+		yMax = world->map.nRow - 1;
 
-	for (xMap = xMin; xMap <= xMax; ++xMap)
-		for (yMap = yMin; yMap <= yMax; ++yMap)
-			if (world->map.collision[xMap][yMap])
+	collisionBox.w = world->tileSet.width;
+	collisionBox.h = world->tileSet.height;
+
+	for (xMap = xMin; xMap < xMax; ++xMap)
+		for (yMap = yMin; yMap < yMax; ++yMap)
+		{
+			collisionBox.x = xMap * world->tileSet.width;
+			collisionBox.y = yMap * world->tileSet.height;
+
+			if (world->map.collision[xMap][yMap] && SDL_IntersectRect(&collisionBox, area, &result))
 				return 1;
+		}
 
 	return 0;
 }
@@ -393,17 +336,14 @@ void loopWorld(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 	int xMap, yMap,
 	    xMin, yMin,
 	    xMax, yMax,
-	    mapIndex;
+	    mapIndex, i = 0;
 	SDL_Rect tileSource, tileArea;
-	struct objectIndex *marchObject;
 	struct spriteIndex *marchSprite;
-
-	world->spriteQueue = NULL;
 
 	SDL_FillRect(world->userInterface, NULL, 0x00000000);
 
-	for (marchObject = world->objectQueue; marchObject != NULL; marchObject = marchObject->next)
-		marchObject->object->objectRoutine(marchObject->object, world);
+	world->spriteQueue = NULL;
+	world->worldRoutine(world);
 
 	SDL_FillRect(world->spriteGround, NULL, 0x00000000);
 
@@ -423,7 +363,7 @@ void loopWorld(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 	if (world->map.nRow < yMax)
 		yMax = world->map.nRow;
 
-	SDL_FillRect(world->backGround, NULL, 0);
+	SDL_FillRect(world->backGround, NULL, SDL_MapRGB(world->backGround->format, 0x80, 0x80, 0x80));
 
 	for (mapIndex = 0; mapIndex < 3; ++mapIndex)
 	{
@@ -536,7 +476,7 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 	if (mode)
 		colorArea(world->backGround, NULL, 0x00000040);
 
-	drawText(world->backGround, &UILocation, &world->font[REGULAR], "Width: %dHeight: %d%nxTile: %dyTile: %d%nmapIndex: %d",
+	drawText(world->backGround, &UILocation, &world->font[FONT_WHITE], "Width: %dHeight: %d%nxTile: %dyTile: %d%nmapIndex: %d",
 	         world->map.nCol, world->map.nRow,
 		 xView + xShift, yView + yShift,
 		 mapIndex);
@@ -581,7 +521,7 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 		break;
 	case 2:
 		colorArea(world->spriteGround, &check, 0x000000ff);
-		drawText(world->spriteGround, &check, &world->font[REGULAR], "Are you sure? ( To %s )", world->map.path);
+		drawText(world->spriteGround, &check, &world->font[FONT_WHITE], "Are you sure? ( To %s )", world->map.path);
 
 		if (keyIsHit(world, KEY_BACK))
 			mode = 0;
@@ -593,7 +533,7 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 			file = fopen(world->map.path, "w");
 			assert(file != NULL);
 
-			fprintf(file, "%s%s\n", world->objectData, world->tileSet.path);
+			fprintf(file, "%d\n%s\n", world->worldID, world->tileSet.path);
 			fprintf(file, "%d,%d\n", world->tileSet.width, world->tileSet.height);
 			fprintf(file, "%d,%d\n", world->map.nCol, world->map.nRow);
 
