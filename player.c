@@ -3,7 +3,6 @@
 #include "engine.h"
 
 static float diagonalMultiplier;
-static Mix_Chunk *footstep;
 
 void playerStart(struct object *object, char *param)
 {
@@ -11,11 +10,10 @@ void playerStart(struct object *object, char *param)
 
 	diagonalMultiplier = 1.0 / sqrt(2.0);
 
-	loadSprites("player.bmp", object, 16, 16);
-	object->xCenter = 8, object->yCenter = 16;
+	loadSprites("player.bmp", &object->sprites, 16, 16, 8, 16);
 
-	object->collider.x = 2;
-	object->collider.y = 12;
+	object->collider.x = -6;
+	object->collider.y = -4;
 	object->collider.w = 12;
 	object->collider.h = 4;
 
@@ -23,24 +21,18 @@ void playerStart(struct object *object, char *param)
 
 	object->x = (float)xStart;
 	object->y = (float)yStart;
-	object->xCenter = 8;
-	object->yCenter = 16;
-
-	footstep = Mix_LoadWAV("footStep.wav");
 }
 
 void playerRoutine(struct object *object, struct world *world)
 {
 	static int currentSprite = 0;
 
-	int xDir, yDir, newSprite, isRunning;
+	int xDir, yDir,
+	    newSprite,
+	    isRunning;
 	float speed,
 	      xMod, yMod;
-	SDL_Rect propose;
 	SDL_Rect textArea = { 4, 4, 256, 0 };
-
-	if (keyIsHit(world, KEY_BACK))
-		Mix_PlayChannel(-1, footstep, 0);
 
 	xDir = (keyIsDown(world, KEY_RIGHT) ? 1 : keyIsDown(world, KEY_LEFT) ? -1 : 0);
 	yDir = (keyIsDown(world, KEY_DOWN) ? 1 : keyIsDown(world, KEY_UP) ? -1 : 0);
@@ -56,23 +48,23 @@ void playerRoutine(struct object *object, struct world *world)
 	if (newSprite != 4 && newSprite != currentSprite)
 	{
 		currentSprite = newSprite;
-		setSprite(object, newSprite);
+		setSprite(&object->sprites, newSprite);
 	}
 
 	if (xDir == 0 && yDir == 0)
 	{
-		object->isPaused = 1;
-		object->sprite.x = 0;
+		object->sprites.isPaused = 1;
+		object->sprites.sprite.x = 0;
 	} else {
-		object->isPaused = 0;
+		object->sprites.isPaused = 0;
 
 		if (isRunning)
 		{
 			speed = 64.0f;
-			setSpriteSpeed(object, 8);
+			setSpritesSpeed(&object->sprites, 8);
 		} else {
 			speed = 32.0f;
-			setSpriteSpeed(object, 4);
+			setSpritesSpeed(&object->sprites, 4);
 		}
 
 		if (xDir != 0 && yDir != 0)
@@ -81,23 +73,12 @@ void playerRoutine(struct object *object, struct world *world)
 		xMod = world->delta * speed * xDir;
 		yMod = world->delta * speed * yDir;
 
-		propose.x = object->collider.x + (int)(object->x + xMod) - object->xCenter;
-		propose.y = object->collider.y + (int)object->y - object->yCenter;;
-		propose.w = object->collider.w;
-		propose.h = object->collider.h;
-
-		if (!isCollision(world, &propose))
-			object->x += xMod;
-		else
-			propose.x = object->collider.x + (int)object->x - object->xCenter;
-
-		propose.y = object->collider.y + (int)(object->y + yMod) - object->yCenter;
-
-		if (!isCollision(world, &propose))
-			object->y += yMod;
-
-		setView(world, (int)object->x, (int)object->y);
+		moveVector(world, &object->collider,
+		           &object->x, &object->y,
+			   xMod, yMod);
 	}
+	
+	setView(world, (int)object->x, (int)object->y);
 
-	queueSprite(world, object);
+	queueSprite(world, &object->sprites, object->x, object->y);
 }

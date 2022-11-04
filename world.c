@@ -155,8 +155,10 @@ void loadWorld(const char *path, struct world *world)
 	SDL_FillRect(world->backGround, NULL, 0x000000ff);
 	SDL_FillRect(world->spriteGround, NULL, 0x00000000);
 
-	world->xView = 0;
-	world->yView = 0;
+	world->view.x = 0;
+	world->view.y = 0;
+	world->view.w = world->screenWidth;
+	world->view.h = world->screenHeight;
 
 	world->spriteQueue = NULL;
 
@@ -165,6 +167,8 @@ void loadWorld(const char *path, struct world *world)
 	world->keyMap[1] = 0;
 
 	fclose(worldFile);
+
+	printf("Successfully loaded world.\n");
 }
 
 void freeWorld(struct world *world)
@@ -192,38 +196,34 @@ void freeWorld(struct world *world)
 	SDL_FreeSurface(world->userInterface);
 }
 
-void queueSprite(struct world *world, struct object *object)
+void queueSprite(struct world *world, struct sprites *sprites, float x, float y)
 {
 	static struct spriteIndex queue[MAX_SPRITEQUEUE];
 	static int availableIndex;
 
 	int raise;
 	SDL_Rect render;
-	SDL_Rect result;
-	SDL_Rect screen;
 	struct spriteIndex *marchSprite;
 
-	screen.x = 0;
-	screen.y = 0;
-	screen.w = world->screenWidth;
-	screen.h = world->screenHeight;
+	raise = (int)y;
 
-	raise = (int)object->y;
+	render.x = (int)x - sprites->xCenter;
+	render.y = (int)y - sprites->yCenter;
+	render.w = sprites->sprite.w;
+	render.h = sprites->sprite.h;
 
-	render.x = (int)object->x - object->xCenter - world->xView;
-	render.y = (int)object->y - object->yCenter - world->yView;
-	render.w = object->sprite.w;
-	render.h = object->sprite.h;
-
-	if (SDL_IntersectRect(&render, &screen, &result) == SDL_FALSE)
+	if (SDL_IntersectRect(&render, &world->view, &render) == SDL_FALSE)
 		return;
+
+	render.x -= world->view.x;
+	render.y -= world->view.y;
 
 	if (world->spriteQueue == NULL)
 	{
 		availableIndex = 0;
 
-		queue[availableIndex].sheet = object->sheet;
-		queue[availableIndex].sprite = &object->sprite;
+		queue[availableIndex].sheet = sprites->sheet;
+		queue[availableIndex].sprite = &sprites->sprite;
 		queue[availableIndex].render = render;
 		queue[availableIndex].raise = raise;
 		queue[availableIndex].next = NULL;
@@ -237,8 +237,8 @@ void queueSprite(struct world *world, struct object *object)
 	if (availableIndex == MAX_SPRITEQUEUE - 1)
 		return;
 
-	queue[availableIndex].sheet = object->sheet;
-	queue[availableIndex].sprite = &object->sprite;
+	queue[availableIndex].sheet = sprites->sheet;
+	queue[availableIndex].sprite = &sprites->sprite;
 	queue[availableIndex].render = render;
 	queue[availableIndex].raise = raise;
 	queue[availableIndex].next = NULL;
@@ -270,23 +270,20 @@ void setView(struct world *world, int xFocus, int yFocus)
 {
 	int xMax, yMax;
 
-	xMax = (world->map.nCol * world->tileSet.width) - world->screenWidth;
-	yMax = (world->map.nRow * world->tileSet.height) - world->screenHeight;
+	xMax = (world->map.nCol * world->tileSet.width) - world->view.w;
+	yMax = (world->map.nRow * world->tileSet.height) - world->view.h;
 
-	world->xView = xFocus - (world->screenWidth / 2);
-	world->yView = yFocus - (world->screenHeight / 2);
+	world->view.x = xFocus - (world->view.w / 2);
+	world->view.y = yFocus - (world->view.h / 2);
 
-	if (world->xView < 0)
-		world->xView = 0;
-	else
-	if (world->xView > xMax)
-		world->xView = xMax;
-
-	if (world->yView < 0)
-		world->yView = 0;
-	else
-	if (world->yView > yMax)
-		world->yView = yMax;
+	if (world->view.x < 0)
+		world->view.x = 0;
+	if (world->view.y < 0)
+		world->view.y = 0;
+	if (world->view.x > xMax)
+		world->view.x = xMax;
+	if (world->view.y > yMax)
+		world->view.y = yMax;
 }
 
 #define MAX_COLLISIONBOX	20
@@ -310,10 +307,10 @@ int isCollision(struct world *world, SDL_Rect *area)
 		xMin = 0;
 	if (yMin < 0)
 		yMin = 0;
-	if (xMax > world->map.nCol - 1)
-		xMax = world->map.nCol - 1;
-	if (yMax > world->map.nRow - 1)
-		yMax = world->map.nRow - 1;
+	if (xMax > world->map.nCol)
+		xMax = world->map.nCol;
+	if (yMax > world->map.nRow)
+		yMax = world->map.nRow;
 
 	collisionBox.w = world->tileSet.width;
 	collisionBox.h = world->tileSet.height;
@@ -331,59 +328,77 @@ int isCollision(struct world *world, SDL_Rect *area)
 	return 0;
 }
 
+void moveVector(struct world *world, SDL_Rect *collider, float *x, float *y, float xMod, float yMod)
+{
+	SDL_Rect propose;
+
+	propose.x = collider->x + (int)(*x + xMod);
+	propose.y = collider->y + (int)*y;
+	propose.w = collider->w;
+	propose.h = collider->h;
+
+	if (!isCollision(world, &propose))
+		*x += xMod;
+	else
+		propose.x = collider->x + (int)*x;
+
+	propose.y = collider->y + (int)(*y + yMod);
+
+	if (!isCollision(world, &propose))
+		*y += yMod;
+}
+
 void loopWorld(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 {
-	int xMap, yMap,
-	    xMin, yMin,
-	    xMax, yMax,
-	    mapIndex, i = 0;
-	SDL_Rect tileSource, tileArea;
 	struct spriteIndex *marchSprite;
+	int mapIndex, xMap, yMap;
+	SDL_Rect tile, render, source;
 
-	SDL_FillRect(world->userInterface, NULL, 0x00000000);
-
+	SDL_FillRect(world->userInterface, NULL, 0);
 	world->spriteQueue = NULL;
 	world->worldRoutine(world);
 
-	SDL_FillRect(world->spriteGround, NULL, 0x00000000);
+	SDL_FillRect(world->spriteGround, NULL, 0);
 
 	for (marchSprite = world->spriteQueue; marchSprite != NULL; marchSprite = marchSprite->next)
 		SDL_BlitSurface(marchSprite->sheet, marchSprite->sprite, world->spriteGround, &marchSprite->render);
 
-	tileArea.w = world->tileSet.width;
-	tileArea.h = world->tileSet.height;
+	SDL_FillRect(world->backGround, NULL, 0x808080ff);
 
-	xMin = world->xView / 16;
-	yMin = world->yView / 16;
-	xMax = xMin + (world->screenWidth / 16);
-	yMax = yMin + (world->screenHeight / 16);
-
-	if (world->map.nCol < xMax)
-		xMax = world->map.nCol;
-	if (world->map.nRow < yMax)
-		yMax = world->map.nRow;
-
-	SDL_FillRect(world->backGround, NULL, SDL_MapRGB(world->backGround->format, 0x80, 0x80, 0x80));
-
-	for (mapIndex = 0; mapIndex < 3; ++mapIndex)
+	for (mapIndex = 0; mapIndex < 2; ++mapIndex)
 	{
 		if (mapIndex == 2)
 			SDL_BlitSurface(world->spriteGround, NULL, world->backGround, NULL);
 
-		for (yMap = yMin; yMap <= yMax; ++yMap)
-			for (xMap = xMin; xMap <= xMax; ++xMap)
+		for (yMap = 0; yMap < world->map.nRow; ++yMap)
+			for (xMap = 0; xMap < world->map.nCol; ++xMap)
 			{
-				tileSource = world->map.mapData[mapIndex][xMap][yMap];
+				tile.x = xMap * world->tileSet.width;
+				tile.y = yMap * world->tileSet.height;
+				tile.w = world->tileSet.width;
+				tile.h = world->tileSet.height;
 
-				tileArea.w = world->tileSet.width;
-				tileArea.h = world->tileSet.height;
-				tileArea.x = (xMap * tileArea.w) - world->xView;
-				tileArea.y = (yMap * tileArea.h) - world->yView;
+				if (SDL_IntersectRect(&world->view, &tile, &render))
+				{
+					render.x -= world->view.x;
+					render.y -= world->view.y;
 
-				SDL_BlitSurface(world->tileSet.imageData, &tileSource, world->backGround, &tileArea);
-			}
+					source = world->map.mapData[mapIndex][xMap][yMap];
+
+					if (render.w < world->tileSet.width && render.x == 0)
+						source.x += world->tileSet.width - render.w;
+					if (render.h < world->tileSet.height && render.y == 0)
+						source.y += world->tileSet.height - render.h;
+
+					source.w = render.w;
+					source.h = render.h;
+
+					SDL_BlitSurface(world->tileSet.imageData, &source, world->backGround, &render);
+				}
+		}
 	}
 
+	SDL_BlitSurface(world->spriteGround, NULL, world->backGround, NULL);
 	SDL_BlitScaled(world->backGround, NULL, screen, renderArea);
 	SDL_BlitScaled(world->userInterface, NULL, screen, renderArea);
 }
@@ -397,17 +412,17 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 		   xTile = 0, yTile = 0;
 	static int mode = 0;
 	static SDL_Rect selectedTile;
-	static SDL_Rect UILocation = { 4, 144 - 16, 184, 12 };
+	static SDL_Rect UILocation = { 4, 166, 192, 12 };
 	static SDL_Rect check = { 48, 48, 96, 48 };
 	static int mapIndex = 0;
 
 	int xMap, yMap,
 	    xMin, yMin,
 	    xMax, yMax,
-	    renderMapIndex;
+	    renderMapIndex,
+	    mouseInArea = 0;
 	SDL_Rect tileRenderArea;
 	SDL_Rect selectedMapTile;
-
 	
 	if (!mode)
 	{
@@ -476,28 +491,31 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 	if (mode)
 		colorArea(world->backGround, NULL, 0x00000040);
 
-	drawText(world->backGround, &UILocation, &world->font[FONT_WHITE], "Width: %dHeight: %d%nxTile: %dyTile: %d%nmapIndex: %d",
-	         world->map.nCol, world->map.nRow,
-		 xView + xShift, yView + yShift,
-		 mapIndex);
+	drawText(world->backGround, &UILocation, &world->font[FONT_WHITE], "( %d, %d ) %nmapIndex: %d", xView + xShift, yView + yShift, mapIndex);
 
 	SDL_BlitScaled(world->backGround, NULL, screen, renderArea);
+	SDL_FillRect(world->spriteGround, NULL, 0);
 
 	switch (mode)
 	{
 	case 1:
-		if (keyIsHit(world, KEY_SPECIAL))
-		{
-			world->map.mapData[mapIndex][xView + xShift][yView + yShift] = selectedTile;
-
-			mode = 0;
-		}
-
 		if (keyIsHit(world, KEY_BACK))
+		{
 			mode = 0;
+
+			break;
+		}
 
 		xTile += keyIsHit(world, KEY_RIGHT) ? 1 : keyIsHit(world, KEY_LEFT) ? -1 : 0;
 		yTile += keyIsHit(world, KEY_DOWN) ? 1 : keyIsHit(world, KEY_UP) ? -1 : 0;
+
+		if (world->xMouse <= world->tileSet.imageData->w && world->yMouse <= world->tileSet.imageData->h)
+		{
+			mouseInArea = 1;
+
+			xTile = world->xMouse / world->tileSet.width;
+			yTile = world->yMouse / world->tileSet.height;
+		}
 
 		if (xTile < 0)
 			xTile = 0;
@@ -518,6 +536,13 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 
 		colorArea(screen, &selectedTile, 0xffffff40);
 
+		if (keyIsHit(world, KEY_SPECIAL) || (mouseInArea && keyIsHit(world, MOUSE_LEFT)))
+		{
+			world->map.mapData[mapIndex][xView + xShift][yView + yShift] = selectedTile;
+
+			mode = 0;
+		}
+
 		break;
 	case 2:
 		colorArea(world->spriteGround, &check, 0x000000ff);
@@ -525,8 +550,10 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 
 		if (keyIsHit(world, KEY_BACK))
 			mode = 0;
+
 		if (keyIsHit(world, KEY_SELECT))
 		{
+
 			FILE *file;
 			int mapIndex;
 
@@ -566,10 +593,16 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 
 			fclose(file);
 
-			mode = 0;
+			mode = 3;
 		}
 
-		SDL_BlitScaled(world->spriteGround, NULL, screen, renderArea);
+		break;
+	case 3:
+		colorArea(world->spriteGround, &check, 0xff);
+		drawText(world->spriteGround, &check, &world->font[FONT_WHITE], "Attempted save.");
+
+		if (keyIsHit(world, KEY_SELECT) || keyIsHit(world, KEY_BACK))
+			mode = 0;
 
 		break;
 	default:
@@ -587,9 +620,6 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 				world->map.collision[xView + xShift][yView + yShift] = world->map.collision[xView + xShift][yView + yShift] ? 0 : 1;
 			else
 				mode = 1;
-
-			xTile = 0;
-			yTile = 0;
 		}
 
 		if (keyIsHit(world, KEY_SELECT))
@@ -598,6 +628,8 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 
 		break;
 	}
+
+	SDL_BlitScaled(world->spriteGround, NULL, screen, renderArea);
 }
 
 #endif

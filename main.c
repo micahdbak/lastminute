@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <time.h>
 
 #include "engine.h"
 
@@ -10,6 +11,17 @@ void cleanUp(void)
 {
 	Mix_CloseAudio();
 	SDL_Quit();
+}
+
+void modifyKey(struct world *world, int isDown, int key)
+{
+	if (world->keyMap[1] & key)
+	{
+		if (!isDown)
+			world->keyMap[1] -= key;
+	} else
+	if (isDown)
+		world->keyMap[1] += key;
 }
 
 int main(int argc, char *argv[])
@@ -24,10 +36,11 @@ int main(int argc, char *argv[])
 	SDL_Event event;
 	int newTicks, prevTicks = 0,
 	    quit = 0,
-	    isDown;
+	    isDown,
+	    mouseState;
 	struct world world;
 
-	Mix_Music *music;
+	srand(time(0));
 
 	assert(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_AUDIO) == 0);
 	assert(Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096) != -1);
@@ -57,11 +70,6 @@ int main(int argc, char *argv[])
 
 	world.keyMap[0] = 0;
 	world.keyMap[1] = 0;
-
-	music = Mix_LoadMUS("music.ogg");
-	/*
-	mix_PlayMusic(music, -1);
-	*/
 
 	while (!quit)
 	{
@@ -108,28 +116,18 @@ int main(int argc, char *argv[])
 				break;
 			case SDL_KEYDOWN:
 			case SDL_KEYUP:
-
-#			define modifyKey(modifyKey_key)\
-				if (world.keyMap[1] & modifyKey_key)\
-				{\
-					if (!isDown)\
-						world.keyMap[1] -= modifyKey_key;\
-				} else\
-				if (isDown)\
-					world.keyMap[1] += modifyKey_key;
-
 				isDown = event.type == SDL_KEYDOWN ? 1 : 0;
 
 				switch (event.key.keysym.sym)
 				{
-				case SDLK_UP:      modifyKey(KEY_UP);       break;
-				case SDLK_RIGHT:   modifyKey(KEY_RIGHT);    break;
-				case SDLK_DOWN:    modifyKey(KEY_DOWN);     break;
-				case SDLK_LEFT:    modifyKey(KEY_LEFT);     break;
-				case SDLK_SPACE:   modifyKey(KEY_SPECIAL);  break;
-				case SDLK_TAB:     modifyKey(KEY_MENU);     break;
-				case SDLK_RETURN:  modifyKey(KEY_SELECT);   break;
-				case SDLK_LSHIFT:  modifyKey(KEY_BACK);     break;
+				case SDLK_UP:      modifyKey(&world, isDown, KEY_UP);       break;
+				case SDLK_RIGHT:   modifyKey(&world, isDown, KEY_RIGHT);    break;
+				case SDLK_DOWN:    modifyKey(&world, isDown, KEY_DOWN);     break;
+				case SDLK_LEFT:    modifyKey(&world, isDown, KEY_LEFT);     break;
+				case SDLK_SPACE:   modifyKey(&world, isDown, KEY_SPECIAL);  break;
+				case SDLK_TAB:     modifyKey(&world, isDown, KEY_MENU);     break;
+				case SDLK_RETURN:  modifyKey(&world, isDown, KEY_SELECT);   break;
+				case SDLK_LSHIFT:  modifyKey(&world, isDown, KEY_BACK);     break;
 				default:
 
 					break;
@@ -145,6 +143,11 @@ int main(int argc, char *argv[])
 		world.delta = (float)(newTicks - prevTicks) / 1000.0f;
 		prevTicks = newTicks;
 
+		mouseState = SDL_GetMouseState(&world.xMouse, &world.yMouse);
+
+		modifyKey(&world, mouseState & SDL_BUTTON_LMASK, MOUSE_LEFT);
+		modifyKey(&world, mouseState & SDL_BUTTON_RMASK, MOUSE_RIGHT);
+
 		SDL_FillRect(screen, NULL, 0);
 
 #	ifdef EDITOR
@@ -152,18 +155,18 @@ int main(int argc, char *argv[])
 #	else
 		loopWorld(&world, screen, &renderArea);
 #	endif
-
 		world.keyMap[0] = world.keyMap[1];
 
 		SDL_UpdateWindowSurface(window);
 	}
 
 	freeFont(&world.font[FONT_WHITE]);
+
+#	ifndef EDITOR
 	freeWorld(&world);
+#	endif
 
 	SDL_FreeSurface(colorArea_surface);
-
-	Mix_FreeMusic(music);
 
 	exit(EXIT_SUCCESS);
 }

@@ -40,37 +40,47 @@ void colorArea(SDL_Surface *surface, SDL_Rect *area, Uint32 color);
 
 /* object.c */
 
-struct object
+struct sprites
 {
 	SDL_Surface *sheet;
-	float x, y;
 	int nCol, nRow,
 	    xCenter, yCenter,
 	    interval,
-	    isPaused,
-	    raise;
+	    isPaused;
 	SDL_Rect sprite;
-	SDL_Rect collider;
 	SDL_TimerID timer;
+};
+
+void loadSprites(const char *path, struct sprites *sprites, int width, int height, int xCenter, int yCenter);
+void setSprite(struct sprites *sprites, int row);
+void setSpritesSpeed(struct sprites *sprites, int framesPerSecond);
+void freeSprites(struct sprites *sprites);
+
+struct object
+{
+	struct sprites sprites;
+	SDL_Rect collider;
+	float x, y;
 	void (*objectRoutine)(struct object *object, struct world *world);
 };
 
-void loadSprites(const char *path, struct object *object, int width, int height);
-void setSprite(struct object *object, int row);
-void setSpriteSpeed(struct object *object, int framesPerSecond);
-void freeObject(struct object *object);
+float getDistance(float x1, float y1, float x2, float y2);
+float getDirection(float x1, float y1, float x2, float y2);
+void makeVector(float distance, float direction, float *x, float *y);
 
 
 /* world.c */
 
-#define KEY_UP		0b00000001
-#define KEY_RIGHT	0b00000010
-#define KEY_DOWN	0b00000100
-#define KEY_LEFT	0b00001000
-#define KEY_SPECIAL	0b00010000
-#define KEY_MENU	0b00100000
-#define KEY_SELECT	0b01000000
-#define KEY_BACK	0b10000000
+#define KEY_UP		0b0000000001
+#define KEY_RIGHT	0b0000000010
+#define KEY_DOWN	0b0000000100
+#define KEY_LEFT	0b0000001000
+#define KEY_SPECIAL	0b0000010000
+#define KEY_MENU	0b0000100000
+#define KEY_SELECT	0b0001000000
+#define KEY_BACK	0b0010000000
+#define MOUSE_LEFT	0b0100000000
+#define MOUSE_RIGHT	0b1000000000
 
 #define PLAYER_SPEED	8
 #define MAX_SPRITEQUEUE	50
@@ -110,7 +120,7 @@ struct world
 
 	SDL_Surface *backGround, *spriteGround, *userInterface;
 	int screenWidth, screenHeight;
-	int xView, yView;
+	SDL_Rect view;
 
 	int worldID;
 
@@ -128,39 +138,72 @@ struct world
 
 	float delta;
 	Uint32 keyMap[2];
+	int xMouse, yMouse;
 };
-
-void loadWorld(const char *path, struct world *world);
-void freeWorld(struct world *world);
-
-void queueSprite(struct world *world, struct object *object);
 
 #define keyIsDown(keyIsDown_worldPtr, keyIsDown_key)\
 	( ((keyIsDown_worldPtr)->keyMap[0] & keyIsDown_key) && ((keyIsDown_worldPtr)->keyMap[1] & keyIsDown_key) )
 #define keyIsHit(keyIsDown_worldPtr, keyIsDown_key)\
 	( !((keyIsDown_worldPtr)->keyMap[0] & keyIsDown_key) && ((keyIsDown_worldPtr)->keyMap[1] & keyIsDown_key) )
 
+void loadWorld(const char *path, struct world *world);
+void freeWorld(struct world *world);
+void queueSprite(struct world *world, struct sprites *sprites, float x, float y);
 void setView(struct world *world, int xFocus, int yFocus);
-int isCollision(struct world *world, SDL_Rect *area);
+int isCollision(struct world *world, SDL_Rect *collider);
+void moveVector(struct world *world, SDL_Rect *collider, float *x, float *y, float xMod, float yMod);
 void loopWorld(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea);
-
 #ifdef EDITOR
 void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea);
 #endif
 
 
+/* player.c */
+
+void playerStart(struct object *object, char *param);
+void playerRoutine(struct object *object, struct world *world);
+
+
+/* enemy.c */
+
+#define ENEMY_WANDERSTATE	0
+#define ENEMY_STALKSTATE	1
+#define ENEMY_ATTACKSTATE	2
+
+struct enemy
+{
+	struct sprites idleSprites, attackSprites;
+	SDL_Rect collider;
+	float x, y,
+	      randomize,
+	      speed, direction,
+	      anxiety,
+	      power,
+	      outerRadius, attackRadius,
+	      stalkSpeed;
+	int state;
+	SDL_TimerID wanderTimer, attackTimer;
+	struct sprites *(*handleSprites)(struct enemy *enemy, struct object *player);
+};
+
+void enemyRoutine(struct world *world, struct enemy *enemy, struct object *player);
+void enemyEnd(struct enemy *enemy);
+
+void bearStart(struct enemy *bear, struct object *player, int xStart, int yStart);
+void skunkStart(struct world *world, struct enemy *skunk, struct object *player, int xStart, int yStart);
+void porcStart(struct enemy *porc, struct object *player, int xStart, int yStart);
+/*
+void raccoonStart(struct enemy *raccoon, struct object *player, int xStart, int yStart);
+*/
+
+
 /* overworld.c */
+
+extern float xKick, yKick;
 
 void overWorldStart(struct world *world);
 void overWorldRoutine(struct world *world);
 void overWorldEnd(struct world *world);
 
-
-/* player.c */
-
-extern struct playerData playerData;
-
-void playerStart(struct object *object, char *param);
-void playerRoutine(struct object *object, struct world *world);
 
 #endif

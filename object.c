@@ -2,59 +2,92 @@
 
 Uint32 updateSprite(Uint32 interval, void *param)
 {
-	struct object *object = (struct object *)param;
+	struct sprites *sprites = (struct sprites *)param;
 
-	if (!object->isPaused)
+	if (!sprites->isPaused)
 	{
-		object->sprite.x += object->sprite.w;
+		sprites->sprite.x += sprites->sprite.w;
 
-		if (object->sprite.x >= object->sheet->w)
-			object->sprite.x = 0;
+		if (sprites->sprite.x >= sprites->sheet->w)
+			sprites->sprite.x = 0;
 	}
 
-	return (Uint32)object->interval != interval ? object->interval : interval;
+	return (Uint32)sprites->interval != interval ? sprites->interval : interval;
 }
 
-void loadSprites(const char *path, struct object *object, int width, int height)
+void loadSprites(const char *path, struct sprites *sprites, int width, int height, int xCenter, int yCenter)
 {
-	object->sheet = SDL_LoadBMP(path);
-	SDL_SetColorKey(object->sheet, SDL_TRUE, SDL_MapRGB(object->sheet->format, 0xff, 0, 0xff));
+	sprites->sheet = SDL_LoadBMP(path);
+	SDL_SetColorKey(sprites->sheet, SDL_TRUE, SDL_MapRGB(sprites->sheet->format, 0xff, 0, 0xff));
 
-	object->x = 0.0f;
-	object->y = 0.0f;
+	sprites->nCol = sprites->sheet->w / width;
+	sprites->nRow = sprites->sheet->h / height;
 
-	object->nCol = object->sheet->w / width;
-	object->nRow = object->sheet->h / height;
+	sprites->xCenter = xCenter;
+	sprites->yCenter = yCenter;
 
-	object->xCenter = width / 2;
-	object->yCenter = height / 2;
+	sprites->interval = 1000;
+	sprites->isPaused = 0;
 
-	object->interval = 1000;
-	object->isPaused = 0;
-	object->raise = 0;
+	sprites->sprite.x = 0;
+	sprites->sprite.y = 0;
+	sprites->sprite.w = width;
+	sprites->sprite.h = height;
 
-	object->sprite.x = 0;
-	object->sprite.y = 0;
-	object->sprite.w = width;
-	object->sprite.h = height;
-
-	object->collider = object->sprite;
-
-	object->timer = SDL_AddTimer(object->interval, updateSprite, (void *)object);
+	sprites->timer = SDL_AddTimer(sprites->interval, updateSprite, (void *)sprites);
 }
 
-void setSprite(struct object *object, int row)
+void setSprite(struct sprites *sprites, int row)
 {
-	object->sprite.y = object->sprite.h * row;
+	sprites->sprite.y = sprites->sprite.h * row;
 }
 
-void setSpriteSpeed(struct object *object, int framesPerSecond)
+void setSpritesSpeed(struct sprites *sprites, int framesPerSecond)
 {
-	object->interval = 1000 / framesPerSecond;
+	sprites->interval = 1000 / framesPerSecond;
 }
 
-void freeObject(struct object *object)
+void freeSprites(struct sprites *sprites)
 {
-	SDL_FreeSurface(object->sheet);
-	SDL_RemoveTimer(object->timer);
+	SDL_FreeSurface(sprites->sheet);
+	SDL_RemoveTimer(sprites->timer);
+}
+
+float getDistance(float x1, float y1, float x2, float y2)
+{
+	float leg1, leg2;
+
+	leg1 = fabs(x2 - x1);
+	leg2 = fabs(y2 - y1);
+
+	if (leg1 == 0)
+		return leg2;
+	if (leg2 == 0)
+		return leg1;
+
+	return sqrt(pow(leg1, 2) + pow(leg2, 2));
+}
+
+float getDirection(float x1, float y1, float x2, float y2)
+{
+	float numerator,
+	      referenceAngle;
+
+	numerator = y2 - y1;
+
+	if (x2 == x1)
+		return numerator < 0.0f ? 3.0 * M_PI_2 : M_PI_2;
+
+	referenceAngle = atan2(y2 - y1, x2 - x1);
+
+	if (referenceAngle < 0.0f)
+		return (2.0 * M_PI) + referenceAngle;
+	else
+		return referenceAngle;
+}
+
+void makeVector(float distance, float direction, float *x, float *y)
+{
+	*x = distance * cos(direction);
+	*y = distance * sin(direction);
 }
