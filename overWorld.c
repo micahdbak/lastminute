@@ -9,8 +9,7 @@ float xKick = 0.0f, yKick = 0.0f;
 
 void overWorldStart(struct world *world)
 {
-	playerStart(&player, "64,64");
-	bearStart(&bear, &player, 128, 128);
+	playerStart(&player, 6, 124);
 }
 
 void overWorldRoutine(struct world *world)
@@ -19,7 +18,7 @@ void overWorldRoutine(struct world *world)
 	Uint32 color;
 
 	playerRoutine(&player, world);
-	enemyRoutine(world, &bear, &player);
+	//enemyRoutine(world, &bear, &player);
 
 	xMod = xKick * world->delta;
 	yMod = yKick * world->delta;
@@ -36,5 +35,5 @@ void overWorldRoutine(struct world *world)
 void overWorldEnd(struct world *world)
 {
 	freeSprites(&player.sprites);
-	enemyEnd(&bear);
+	//enemyEnd(&bear);
 }

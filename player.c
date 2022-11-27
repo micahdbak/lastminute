@@ -4,23 +4,19 @@
 
 static float diagonalMultiplier;
 
-void playerStart(struct object *object, char *param)
+void playerStart(struct object *object, int xStart, int yStart)
 {
-	int xStart, yStart;
-
 	diagonalMultiplier = 1.0 / sqrt(2.0);
 
 	loadSprites("player.bmp", &object->sprites, 16, 16, 8, 16);
 
-	object->collider.x = -6;
+	object->collider.x = -4;
 	object->collider.y = -4;
-	object->collider.w = 12;
+	object->collider.w = 8;
 	object->collider.h = 4;
 
-	sscanf(param, "%d,%d", &xStart, &yStart);
-
-	object->x = (float)xStart;
-	object->y = (float)yStart;
+	object->x = (float)(xStart * 16);
+	object->y = (float)(yStart * 16);
 }
 
 void playerRoutine(struct object *object, struct world *world)

@@ -1,6 +1,8 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
+#define MAPSHOT
+
 #include "SDL.h"
 #include "SDL_mixer.h"
 
@@ -128,8 +130,7 @@ struct world
 	{
 		SDL_Surface *sheet;
 		int raise;
-		SDL_Rect *sprite;
-		SDL_Rect render;
+		SDL_Rect sprite, render;
 		struct spriteIndex *next;
 	} *spriteQueue;
 
@@ -160,7 +161,7 @@ void worldEditor(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 
 /* player.c */
 
-void playerStart(struct object *object, char *param);
+void playerStart(struct object *object, int xStart, int yStart);
 void playerRoutine(struct object *object, struct world *world);
 
 
@@ -192,9 +193,7 @@ void enemyEnd(struct enemy *enemy);
 void bearStart(struct enemy *bear, struct object *player, int xStart, int yStart);
 void skunkStart(struct world *world, struct enemy *skunk, struct object *player, int xStart, int yStart);
 void porcStart(struct enemy *porc, struct object *player, int xStart, int yStart);
-/*
 void raccoonStart(struct enemy *raccoon, struct object *player, int xStart, int yStart);
-*/
 
 
 /* overworld.c */

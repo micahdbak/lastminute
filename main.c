@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 	assert(Mix_OpenAudio(22050, MIX_DEFAULT_FORMAT, 2, 4096) != -1);
 	atexit(cleanUp);
 
-	window = SDL_CreateWindow("Explorer", 0, 0, windowWidth, windowHeight, SDL_WINDOW_RESIZABLE);
+	window = SDL_CreateWindow("Last Minute: The RPG", 0, 0, windowWidth, windowHeight, SDL_WINDOW_RESIZABLE);
 	assert(window != NULL);
 	screen = SDL_GetWindowSurface(window);
 	assert(screen != NULL);

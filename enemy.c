@@ -46,7 +46,12 @@ void enemyRoutine(struct world *world, struct enemy *enemy, struct object *playe
 			enemy->state = ENEMY_STALKSTATE;
 			enemy->speed = enemy->stalkSpeed;
 
-			enemy->direction = getDirection(enemy->x, enemy->y, player->x, player->y);
+			enemy->direction = getDirection(enemy->x, enemy->y, player->x, player->y) + enemy->randomize;
+
+			if (enemy->direction < 0.0f)
+				enemy->direction += 2.0 * M_PI;
+			if (enemy->direction > 2.0 * M_PI)
+				enemy->direction -= 2.0 * M_PI;
 		}
 	} else {
 		setSpritesSpeed(&enemy->idleSprites, 4);
@@ -100,7 +105,7 @@ struct sprites *bearSprites(struct enemy *bear, struct object *player)
 	struct sprites *sprites;
 	
 	sprites = bear->state == ENEMY_ATTACKSTATE ? &bear->attackSprites : &bear->idleSprites;
-	setSprite(sprites, bear->y > player->y ? 1 : 0);
+	setSprite(sprites, sin(bear->direction) > 0.0 ? 0 : 1);
 
 	return sprites;
 }
@@ -123,8 +128,8 @@ void bearStart(struct enemy *bear, struct object *player, int xStart, int yStart
 
 	setSpritesSpeed(&bear->attackSprites, 8);
 
-	bear->x = (float)xStart;
-	bear->y = (float)yStart;
+	bear->x = (float)(xStart * 16);
+	bear->y = (float)(yStart * 16);
 
 	bear->randomize = ((float)(rand() % 180) / 180.0f * M_PI) - (M_PI_2);
 	bear->speed = 16.0f;
@@ -218,8 +223,8 @@ void skunkStart(struct world *world, struct enemy *skunk, struct object *player,
 
 	setSpritesSpeed(&skunk->idleSprites, 4);
 
-	skunk->x = (float)xStart;
-	skunk->y = (float)yStart;
+	skunk->x = (float)(xStart * 16);
+	skunk->y = (float)(yStart * 16);
 
 	skunk->randomize = ((float)(rand() % 180) / 180.0f * M_PI) - (M_PI_2);
 	skunk->speed = 32.0f;
@@ -316,8 +321,8 @@ void porcStart(struct enemy *porc, struct object *player, int xStart, int yStart
 	setSpritesSpeed(&porc->idleSprites, 4);
 	setSpritesSpeed(&porc->attackSprites, 4);
 
-	porc->x = (float)xStart;
-	porc->y = (float)yStart;
+	porc->x = (float)(xStart * 16);
+	porc->y = (float)(yStart * 16);
 
 	porc->randomize = ((float)(rand() % 180) / 180.0f * M_PI) - (M_PI_2);
 	porc->speed = 16.0f;
@@ -341,7 +346,6 @@ void porcStart(struct enemy *porc, struct object *player, int xStart, int yStart
 	porc->handleSprites = porcSprites;
 }
 
-/*
 struct raccoonParam
 {
 	struct enemy *raccoon;
@@ -351,12 +355,30 @@ struct raccoonParam
 Uint32 raccoonAttack(Uint32 interval, void *param)
 {
 	struct raccoonParam *raccoonParam = (struct raccoonParam *)param;
+	float direction,
+	      xMod, yMod;
 	
+	if (raccoonParam->raccoon->state == ENEMY_ATTACKSTATE && getDistance(raccoonParam->raccoon->x, raccoonParam->raccoon->y, raccoonParam->player->x, raccoonParam->player->y) < 32.0f)
+	{
+		direction = getDirection(raccoonParam->raccoon->x, raccoonParam->raccoon->y, raccoonParam->player->x, raccoonParam->player->y);
+		makeVector(raccoonParam->raccoon->power, direction, &xMod, &yMod);
+
+		xKick += xMod;
+		yKick += yMod;
+	}
+
 	return interval;
 }
 
 struct sprites *raccoonSprites(struct enemy *raccoon, struct object *player)
 {
+	int sprite;
+
+	sprite = (int)roundf((raccoon->direction / (2.0 * M_PI)) * 8.0f);
+	sprite %= 8;
+
+	setSprite(&raccoon->idleSprites, sprite);
+
 	return &raccoon->idleSprites;
 }
 
@@ -377,17 +399,17 @@ void raccoonStart(struct enemy *raccoon, struct object *player, int xStart, int 
 
 	setSpritesSpeed(&raccoon->idleSprites, 4);
 
-	raccoon->x = (float)xStart;
-	raccoon->y = (float)yStart;
+	raccoon->x = (float)(xStart * 16);
+	raccoon->y = (float)(yStart * 16);
 
-	raccoon->randomize = ((float)(rand() % 180) / 180.0f * M_PI) - (M_PI_2);
-	raccoon->speed = 32.0f;
+	raccoon->randomize = ((float)(rand() % 90) / 180.0f * M_PI) - (M_PI_2 / 2.0);
+	raccoon->speed = 96.0f;
 	raccoon->direction = 0.0f;
 	raccoon->anxiety = 8.0f;
 	raccoon->power = 128.0f;
 	raccoon->outerRadius = 128.0f;
-	raccoon->attackRadius = 32.0f;
-	raccoon->stalkSpeed = 64.0f;
+	raccoon->attackRadius = 64.0f;
+	raccoon->stalkSpeed = 96.0f;
 
 	raccoon->state = ENEMY_WANDERSTATE;
 
@@ -403,4 +425,3 @@ void raccoonStart(struct enemy *raccoon, struct object *player, int xStart, int 
 
 	printf("Created raccoon.\n");
 }
-*/

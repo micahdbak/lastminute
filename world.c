@@ -18,6 +18,10 @@ void loadWorld(const char *path, struct world *world)
 	    c, worldID, i,
 	    mapIndex;
 	SDL_Rect emptyTile;
+#ifdef MAPSHOT
+	SDL_Surface *mapShot;
+	SDL_Rect mapShotTile;
+#endif
 
 	worldFile = fopen(path, "r");
 	assert(worldFile != NULL);
@@ -63,6 +67,13 @@ void loadWorld(const char *path, struct world *world)
 
 	fscanf(worldFile, "%d,%d\n", &world->map.nCol, &world->map.nRow);
 	assert(world->map.nCol > 0 && world->map.nRow > 0);
+
+#ifdef MAPSHOT
+	mapShot = SDL_CreateRGBSurface(0, world->map.nCol * world->tileSet.width, world->map.nRow * world->tileSet.height, 32, 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff);
+	assert(mapShot != NULL);
+
+	SDL_FillRect(mapShot, NULL, 0x000000ff);
+#endif
 
 	world->map.mapData[0] = calloc(world->map.nCol, sizeof(SDL_Rect *));
 	world->map.mapData[1] = calloc(world->map.nCol, sizeof(SDL_Rect *));
@@ -137,6 +148,15 @@ void loadWorld(const char *path, struct world *world)
 				world->map.mapData[mapIndex][xMap][yMap].y = yTile * world->tileSet.height;
 				world->map.mapData[mapIndex][xMap][yMap].w = world->tileSet.width;
 				world->map.mapData[mapIndex][xMap][yMap].h = world->tileSet.height;
+
+			#ifdef MAPSHOT
+				mapShotTile.x = xMap * world->tileSet.width;
+				mapShotTile.y = yMap * world->tileSet.height;
+				mapShotTile.w = world->tileSet.width;
+				mapShotTile.h = world->tileSet.height;
+
+				SDL_BlitSurface(world->tileSet.imageData, &world->map.mapData[mapIndex][xMap][yMap], mapShot, &mapShotTile);
+			#endif
 			} else
 			if (mapIndex == 3)
 			{
@@ -146,6 +166,11 @@ void loadWorld(const char *path, struct world *world)
 
 			break;
 		}
+
+#ifdef MAPSHOT
+	SDL_SaveBMP(mapShot, "mapShot.bmp");
+	SDL_FreeSurface(mapShot);
+#endif
 
 	world->backGround = SDL_CreateRGBSurface(0, world->screenWidth, world->screenHeight, 32, 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff);
 	world->spriteGround = SDL_CreateRGBSurface(0, world->screenWidth, world->screenHeight, 32, 0xff000000, 0x00ff0000, 0x0000ff00, 0x000000ff);
@@ -202,7 +227,7 @@ void queueSprite(struct world *world, struct sprites *sprites, float x, float y)
 	static int availableIndex;
 
 	int raise;
-	SDL_Rect render;
+	SDL_Rect render, sprite;
 	struct spriteIndex *marchSprite;
 
 	raise = (int)y;
@@ -218,12 +243,22 @@ void queueSprite(struct world *world, struct sprites *sprites, float x, float y)
 	render.x -= world->view.x;
 	render.y -= world->view.y;
 
+	sprite = sprites->sprite;
+
+	if (render.w < sprites->sprite.w && render.x == 0)
+		sprite.x += sprites->sprite.w - render.w;
+	if (render.h < sprites->sprite.h && render.y == 0)
+		sprite.y += sprites->sprite.h - render.h;
+
+	sprite.w = render.w;
+	sprite.h = render.h;
+
 	if (world->spriteQueue == NULL)
 	{
 		availableIndex = 0;
 
 		queue[availableIndex].sheet = sprites->sheet;
-		queue[availableIndex].sprite = &sprites->sprite;
+		queue[availableIndex].sprite = sprite;
 		queue[availableIndex].render = render;
 		queue[availableIndex].raise = raise;
 		queue[availableIndex].next = NULL;
@@ -238,7 +273,7 @@ void queueSprite(struct world *world, struct sprites *sprites, float x, float y)
 		return;
 
 	queue[availableIndex].sheet = sprites->sheet;
-	queue[availableIndex].sprite = &sprites->sprite;
+	queue[availableIndex].sprite = sprite;
 	queue[availableIndex].render = render;
 	queue[availableIndex].raise = raise;
 	queue[availableIndex].next = NULL;
@@ -361,11 +396,11 @@ void loopWorld(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 	SDL_FillRect(world->spriteGround, NULL, 0);
 
 	for (marchSprite = world->spriteQueue; marchSprite != NULL; marchSprite = marchSprite->next)
-		SDL_BlitSurface(marchSprite->sheet, marchSprite->sprite, world->spriteGround, &marchSprite->render);
+		SDL_BlitSurface(marchSprite->sheet, &marchSprite->sprite, world->spriteGround, &marchSprite->render);
 
 	SDL_FillRect(world->backGround, NULL, 0x808080ff);
 
-	for (mapIndex = 0; mapIndex < 2; ++mapIndex)
+	for (mapIndex = 0; mapIndex < 3; ++mapIndex)
 	{
 		if (mapIndex == 2)
 			SDL_BlitSurface(world->spriteGround, NULL, world->backGround, NULL);
@@ -398,7 +433,6 @@ void loopWorld(struct world *world, SDL_Surface *screen, SDL_Rect *renderArea)
 		}
 	}
 
-	SDL_BlitSurface(world->spriteGround, NULL, world->backGround, NULL);
 	SDL_BlitScaled(world->backGround, NULL, screen, renderArea);
 	SDL_BlitScaled(world->userInterface, NULL, screen, renderArea);
 }
